@@ -10,15 +10,10 @@ use crate::world3d::location_position;
 pub struct PlayerEntity;
 
 #[derive(Component)]
-pub struct NpcEntity {
-    pub npc_index: usize,
-    pub location: LocationId,
-}
+pub struct NpcEntity;
 
 #[derive(Component)]
-pub struct MerchantNpc {
-    pub location: LocationId,
-}
+pub struct MerchantNpc;
 
 #[derive(Component)]
 pub struct HostileNpc;
@@ -35,18 +30,7 @@ pub struct NpcHealth {
 }
 
 #[derive(Component)]
-pub struct Limb {
-    pub limb_type: LimbPart,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum LimbPart {
-    LeftArm,
-    RightArm,
-    LeftLeg,
-    RightLeg,
-    Head,
-}
+pub struct Limb;
 
 #[derive(Component)]
 pub struct WeaponVisual;
@@ -127,21 +111,21 @@ fn spawn_characters(
             Mesh3d(head_mesh.clone()),
             MeshMaterial3d(limb_mat.clone()),
             Transform::from_xyz(0.0, 0.9, 0.0),
-            Limb { limb_type: LimbPart::Head },
+            Limb,
         ));
         // Left arm
         parent.spawn((
             Mesh3d(arm_mesh.clone()),
             MeshMaterial3d(limb_mat.clone()),
             Transform::from_xyz(-0.55, 0.2, 0.0),
-            Limb { limb_type: LimbPart::LeftArm },
+            Limb,
         ));
         // Right arm
         parent.spawn((
             Mesh3d(arm_mesh.clone()),
             MeshMaterial3d(limb_mat.clone()),
             Transform::from_xyz(0.55, 0.2, 0.0),
-            Limb { limb_type: LimbPart::RightArm },
+            Limb,
         ));
         // Weapon (attached to right hand)
         parent.spawn((
@@ -155,14 +139,14 @@ fn spawn_characters(
             Mesh3d(leg_mesh.clone()),
             MeshMaterial3d(limb_mat.clone()),
             Transform::from_xyz(-0.2, -0.9, 0.0),
-            Limb { limb_type: LimbPart::LeftLeg },
+            Limb,
         ));
         // Right leg
         parent.spawn((
             Mesh3d(leg_mesh),
             MeshMaterial3d(limb_mat),
             Transform::from_xyz(0.2, -0.9, 0.0),
-            Limb { limb_type: LimbPart::RightLeg },
+            Limb,
         ));
     });
 
@@ -191,10 +175,7 @@ fn spawn_characters(
                 Collider::capsule(0.35, 1.0),
                 LockedAxes::ROTATION_LOCKED,
                 LinearDamping(8.0),
-                NpcEntity {
-                    npc_index: i,
-                    location: location.id,
-                },
+                NpcEntity,
                 NpcHealth {
                     current: npc.health,
                     max: npc.max_health,
@@ -210,7 +191,7 @@ fn spawn_characters(
                 entity_cmds.insert(HostileNpc);
             }
             if npc.npc_type == NpcType::Merchant {
-                entity_cmds.insert(MerchantNpc { location: location.id });
+                entity_cmds.insert(MerchantNpc);
             }
         }
     }

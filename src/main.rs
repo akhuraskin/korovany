@@ -53,7 +53,7 @@ fn main() {
         .add_systems(OnEnter(AppState::InGame), (setup_world_events, despawn_ui_camera))
         .add_systems(
             Update,
-            (caravan_spawn_timer, faction_turn_timer, random_encounter_timer)
+            (caravan_spawn_timer, faction_turn_timer, random_encounter_timer, faction_action_input)
                 .run_if(in_state(AppState::InGame)),
         )
         .add_systems(OnExit(AppState::InGame), (cleanup_3d_world, spawn_ui_camera))
@@ -97,6 +97,7 @@ fn caravan_spawn_timer(
     mut game_state: ResMut<types::GameState>,
     mut combat_msgs: MessageWriter<combat3d::CombatMessage>,
     mut commands: Commands,
+    existing_q: Query<Entity, With<CaravanEntity>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -107,11 +108,11 @@ fn caravan_spawn_timer(
 
     game_state.move_caravans();
     game_state.spawn_caravan();
-
-    // Spawn 3D caravan entities for any new caravans
-    for caravan in &game_state.caravans {
+    for entity in &existing_q {
+        commands.entity(entity).despawn();
+    }
+    for (idx, caravan) in game_state.caravans.iter().enumerate() {
         let pos = world3d::location_position(caravan.location);
-        // Spawn wagon cuboid
         commands.spawn((
             Mesh3d(meshes.add(Cuboid::new(3.0, 2.0, 5.0))),
             MeshMaterial3d(mats.add(StandardMaterial {
@@ -121,7 +122,7 @@ fn caravan_spawn_timer(
             Transform::from_translation(pos + Vec3::Y * 1.0),
             RigidBody::Static,
             Collider::cuboid(3.0, 2.0, 5.0),
-            CaravanEntity,
+            CaravanEntity { caravan_index: idx },
         ));
     }
 
@@ -133,7 +134,9 @@ fn caravan_spawn_timer(
 }
 
 #[derive(Component)]
-struct CaravanEntity;
+pub struct CaravanEntity {
+    pub caravan_index: usize,
+}
 
 fn faction_turn_timer(
     time: Res<Time>,
@@ -204,10 +207,7 @@ fn random_encounter_timer(
                     Collider::capsule(0.35, 1.0),
                     LockedAxes::ROTATION_LOCKED,
                     LinearDamping(8.0),
-                    character::NpcEntity {
-                        npc_index: loc.npcs.len() - 1,
-                        location: player_loc,
-                    },
+                    character::NpcEntity,
                     character::NpcHealth {
                         current: npc.health,
                         max: npc.max_health,
@@ -229,6 +229,24 @@ fn random_encounter_timer(
     }
 }
 
+fn faction_action_input(
+    input: Res<ButtonInput<KeyCode>>,
+    mut game_state: ResMut<types::GameState>,
+    mut combat_msgs: MessageWriter<combat3d::CombatMessage>,
+) {
+    if !input.just_pressed(KeyCode::KeyM) {
+        return;
+    }
+
+    let messages = events::perform_faction_action(&mut game_state);
+    for msg in messages {
+        combat_msgs.write(combat3d::CombatMessage {
+            text: msg,
+            color: Color::srgb(0.7, 0.9, 1.0),
+        });
+    }
+}
+
 fn cleanup_3d_world(
     mut commands: Commands,
     query: Query<Entity, Or<(
@@ -237,6 +255,8 @@ fn cleanup_3d_world(
         With<world3d::ZoneGround>,
         With<world3d::Wall>,
         With<world3d::ZoneTrigger>,
+        With<world3d::TreeEntity>,
+        With<world3d::TreeLodPair>,
         With<CaravanEntity>,
         With<combat3d::LootDrop>,
         With<camera::OrbitCamera>,

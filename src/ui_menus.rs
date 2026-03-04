@@ -130,18 +130,6 @@ fn despawn_menu(mut commands: Commands, query: Query<Entity, With<MenuRoot>>) {
     }
 }
 
-fn button_interaction(
-    mut query: Query<(&Interaction, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
-) {
-    for (interaction, mut bg) in &mut query {
-        *bg = match *interaction {
-            Interaction::Pressed => materials::UI_BUTTON_PRESS.into(),
-            Interaction::Hovered => materials::UI_BUTTON_HOVER.into(),
-            Interaction::None => materials::UI_BUTTON.into(),
-        };
-    }
-}
-
 // === Main Menu ===
 
 fn spawn_main_menu(mut commands: Commands) {
@@ -320,7 +308,6 @@ fn name_input_system(
     mut next_state: ResMut<NextState<AppState>>,
     mut name: ResMut<PlayerNameInput>,
     selected: Res<SelectedFaction>,
-    input: Res<ButtonInput<KeyCode>>,
     mut char_events: MessageReader<bevy::input::keyboard::KeyboardInput>,
     mut display_q: Query<&mut Text, With<NameInputDisplay>>,
     query: Query<(&Interaction, &MenuButton), Changed<Interaction>>,

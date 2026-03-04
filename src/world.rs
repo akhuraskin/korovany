@@ -10,23 +10,6 @@ impl GameState {
         self.locations.iter_mut().find(|l| l.id == id)
     }
 
-    pub fn current_location(&self) -> &Location {
-        self.find_location(self.player.location)
-            .expect("Player is at invalid location")
-    }
-
-    pub fn connections_from_current(&self) -> Vec<LocationId> {
-        self.current_location().connections.clone()
-    }
-
-    pub fn has_hostile_npcs(&self) -> bool {
-        self.current_location().npcs.iter().any(|n| n.is_hostile() && n.is_alive())
-    }
-
-    pub fn has_caravan_at_player(&self) -> bool {
-        self.caravans.iter().any(|c| c.location == self.player.location)
-    }
-
     pub fn spawn_caravan(&mut self) {
         let mut rng = rand::thread_rng();
         let road_locations = [LocationId::RoadNorthSouth, LocationId::RoadEastWest, LocationId::Crossroads];

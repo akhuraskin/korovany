@@ -133,3 +133,57 @@ pub fn process_faction_turn(state: &mut GameState) -> Vec<String> {
 
     messages
 }
+
+pub fn perform_faction_action(state: &mut GameState) -> Vec<String> {
+    let mut messages = Vec::new();
+    match state.player.faction {
+        Faction::Palace => {
+            if check_order_compliance(&state.player) && !matches!(state.player.current_order, CommanderOrder::None) {
+                let reward = 15 + state.player.level * 3;
+                state.player.gold += reward;
+                messages.push(format!("Приказ выполнен. Награда: {} золота.", reward));
+                state.player.current_order = CommanderOrder::None;
+                state.player.disobedience_count = 0;
+            } else {
+                messages.push(format!(
+                    "Текущий приказ: {}. Выполните его в нужной локации.",
+                    state.player.current_order.description()
+                ));
+            }
+        }
+        Faction::Elves => {
+            if state.player.location.is_road() {
+                if state.caravans.is_empty() {
+                    state.spawn_caravan();
+                    messages.push("Разведчики нашли свежий корован на дорогах.".to_string());
+                } else {
+                    messages.push("Разведка обновлена: корованы уже отмечены на тракте.".to_string());
+                }
+            } else {
+                messages.push("Совет старейшин: выйдите на дорогу, чтобы охотиться на корованы.".to_string());
+            }
+        }
+        Faction::DarkLord => {
+            if state.player.troops.len() < 3 {
+                messages.push("Недостаточно войск для приказа. Нужно минимум 3 воина.".to_string());
+            } else if state.player.location != LocationId::FortTower && state.player.location != LocationId::FortCourtyard {
+                messages.push("Отдайте приказ из крепости (Двор/Башня).".to_string());
+            } else {
+                let spent = 3usize.min(state.player.troops.len());
+                for _ in 0..spent {
+                    let _ = state.player.troops.pop();
+                }
+                state.spawn_caravan();
+                let war_chest = 25 + state.player.level * 5;
+                state.player.gold += war_chest;
+                messages.push("Вы отправили отряд на рейд по трактам.".to_string());
+                messages.push(format!(
+                    "Трофеи рейда пополнили казну: +{} золота. Остаток войск: {}",
+                    war_chest,
+                    state.player.troops.len()
+                ));
+            }
+        }
+    }
+    messages
+}

@@ -5,6 +5,7 @@ use crate::materials;
 use crate::types::*;
 use crate::character::*;
 use crate::world3d::ZoneTrigger;
+use crate::CaravanEntity;
 
 pub struct HudPlugin;
 
@@ -25,6 +26,7 @@ impl Plugin for HudPlugin {
                     update_zone_name,
                     update_interaction_prompt,
                     update_enemy_health_bar,
+                    update_eye_occlusion,
                 )
                     .run_if(in_state(AppState::InGame)),
             );
@@ -72,6 +74,12 @@ struct EnemyHealthFill;
 
 #[derive(Component)]
 struct EnemyNameText;
+
+#[derive(Component)]
+struct LeftEyeMask;
+
+#[derive(Component)]
+struct RightEyeMask;
 
 fn spawn_hud(mut commands: Commands) {
     commands.spawn((
@@ -230,6 +238,34 @@ fn spawn_hud(mut commands: Commands) {
                 InteractionPrompt,
             ));
         });
+
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                width: Val::Percent(50.0),
+                height: Val::Percent(100.0),
+                display: Display::None,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.78)),
+            LeftEyeMask,
+        ));
+
+        parent.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Percent(50.0),
+                top: Val::Px(0.0),
+                width: Val::Percent(50.0),
+                height: Val::Percent(100.0),
+                display: Display::None,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.78)),
+            RightEyeMask,
+        ));
     });
 }
 
@@ -368,6 +404,7 @@ fn update_zone_name(
 fn update_interaction_prompt(
     player_q: Query<&Transform, With<PlayerEntity>>,
     merchant_q: Query<(&Transform, &MerchantNpc)>,
+    caravan_q: Query<&Transform, With<CaravanEntity>>,
     game_state: Res<GameState>,
     mut text_q: Query<&mut Text, With<InteractionPrompt>>,
 ) {
@@ -382,6 +419,13 @@ fn update_interaction_prompt(
         }
     }
 
+    for caravan_tf in &caravan_q {
+        if player_tf.translation.distance(caravan_tf.translation) < 6.0 {
+            **text = "[E] Корован | [M] Действие фракции".to_string();
+            return;
+        }
+    }
+
     // Check if at healer location
     if game_state.player.location.has_healer() {
         **text = "[H] Лекарь".to_string();
@@ -390,11 +434,11 @@ fn update_interaction_prompt(
 
     // Check if at shop location
     if game_state.player.location.has_shop() {
-        **text = "[E] Магазин".to_string();
+        **text = "[E] Магазин | [M] Действие фракции".to_string();
         return;
     }
 
-    **text = String::new();
+    **text = "[M] Действие фракции".to_string();
 }
 
 fn update_enemy_health_bar(
@@ -440,5 +484,21 @@ fn update_enemy_health_bar(
         if let Ok(mut name) = name_q.single_mut() {
             **name = String::new();
         }
+    }
+}
+
+fn update_eye_occlusion(
+    game_state: Res<GameState>,
+    mut left_q: Query<&mut Node, (With<LeftEyeMask>, Without<RightEyeMask>)>,
+    mut right_q: Query<&mut Node, (With<RightEyeMask>, Without<LeftEyeMask>)>,
+) {
+    let left_lost = game_state.player.injuries.left_eye == EyeState::Lost;
+    let right_lost = game_state.player.injuries.right_eye == EyeState::Lost;
+
+    if let Ok(mut left) = left_q.single_mut() {
+        left.display = if left_lost { Display::Flex } else { Display::None };
+    }
+    if let Ok(mut right) = right_q.single_mut() {
+        right.display = if right_lost { Display::Flex } else { Display::None };
     }
 }

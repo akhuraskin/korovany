@@ -11,14 +11,6 @@ pub enum Faction {
 }
 
 impl Faction {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Faction::Elves => "Лесные Эльфы",
-            Faction::Palace => "Охрана Дворца",
-            Faction::DarkLord => "Тёмный Властелин",
-        }
-    }
-
     pub fn description(&self) -> &'static str {
         match self {
             Faction::Elves => "Вы — эльф из лесного племени. Ваш путь — набеги на корованы, партизанская война и защита леса.",
@@ -121,12 +113,6 @@ impl Injuries {
             LimbState::Healthy => {}
         }
         modifier
-    }
-
-    pub fn can_walk(&self) -> bool {
-        let legs_ok = self.left_leg != LimbState::Severed || self.right_leg != LimbState::Severed;
-        let has_prosthesis = self.left_leg == LimbState::Prosthesis || self.right_leg == LimbState::Prosthesis;
-        legs_ok || has_prosthesis
     }
 
     pub fn can_fight(&self) -> bool {
@@ -249,33 +235,6 @@ impl LocationId {
             LocationId::RoadNorthSouth => "Дорога Север-Юг",
             LocationId::RoadEastWest => "Дорога Запад-Восток",
             LocationId::Crossroads => "Перекрёсток",
-        }
-    }
-
-    pub fn description(&self) -> &'static str {
-        match self {
-            LocationId::TownSquare => "Шумная площадь вольного города. Торговцы кричат, стражники патрулируют.",
-            LocationId::TownMarket => "Крытый рынок с лавками оружейников, зельеваров и скупщиков краденого.",
-            LocationId::TownTavern => "Тёмная таверна «Слепой Тролль». Здесь лечат раны и продают слухи.",
-            LocationId::TownGates => "Массивные ворота города. Стражники проверяют путников.",
-            LocationId::PalaceGates => "Золочёные ворота Имперского Дворца. Стража в блестящих доспехах.",
-            LocationId::PalaceCourtyard => "Мощёный двор дворца. Фонтан в центре, казармы слева.",
-            LocationId::PalaceBarracks => "Казармы дворцовой стражи. Оружейные стойки и койки.",
-            LocationId::PalaceThroneRoom => "Тронный зал Императора. Золото, мрамор, величие.",
-            LocationId::PalaceArmory => "Дворцовая оружейная. Лучшее оружие и доспехи империи.",
-            LocationId::ForestEdge => "Границы древнего леса. Деревья смыкаются над головой.",
-            LocationId::ForestVillage => "Эльфийская деревня на деревьях. Мосты из лиан, домики в кронах.",
-            LocationId::ForestDepths => "Тёмная чаща. Здесь водятся опасные звери и заблудшие путники.",
-            LocationId::ForestSacredGrove => "Священная роща эльфов. Древний дуб светится магией. Здесь лечат раны.",
-            LocationId::ForestOutpost => "Сторожевой пост эльфов на опушке. Отсюда следят за дорогами.",
-            LocationId::MountainPass => "Узкий горный перевал. Ветер воет, камни осыпаются.",
-            LocationId::FortGates => "Чёрные ворота крепости. Шипы, черепа, устрашение.",
-            LocationId::FortCourtyard => "Мрачный двор крепости. Тренировочные манекены и клетки с пленниками.",
-            LocationId::FortDungeon => "Подземелье крепости. Тёмные коридоры, камеры пыток, склады.",
-            LocationId::FortTower => "Башня Тёмного Властелина. Вид на все земли. Здесь куётся зло.",
-            LocationId::RoadNorthSouth => "Пыльная дорога с севера на юг. Здесь ходят корованы...",
-            LocationId::RoadEastWest => "Торговый тракт с запада на восток. Следы повозок в грязи.",
-            LocationId::Crossroads => "Перекрёсток трёх дорог. Каменный указатель порос мхом.",
         }
     }
 
@@ -523,19 +482,6 @@ pub enum DismemberTarget {
     RightLeg,
     LeftEye,
     RightEye,
-}
-
-impl DismemberTarget {
-    pub fn name(&self) -> &'static str {
-        match self {
-            DismemberTarget::LeftArm => "левую руку",
-            DismemberTarget::RightArm => "правую руку",
-            DismemberTarget::LeftLeg => "левую ногу",
-            DismemberTarget::RightLeg => "правую ногу",
-            DismemberTarget::LeftEye => "левый глаз",
-            DismemberTarget::RightEye => "правый глаз",
-        }
-    }
 }
 
 // === Shop inventory definitions ===
