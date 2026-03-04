@@ -98,24 +98,6 @@ impl Player {
         }
     }
 
-    pub fn can_move(&self) -> bool {
-        self.injuries.can_walk() || self.has_wheelchair
-    }
-
-    pub fn movement_description(&self) -> &'static str {
-        if self.injuries.can_walk() {
-            if self.injuries.left_leg == LimbState::Severed || self.injuries.right_leg == LimbState::Severed {
-                "Ковыляете на одной ноге"
-            } else {
-                "Идёте"
-            }
-        } else if self.has_wheelchair {
-            "Едете на коляске"
-        } else {
-            "Ползёте"
-        }
-    }
-
     pub fn equip_weapon(&mut self, index: usize) -> Option<String> {
         if index >= self.inventory.len() {
             return None;

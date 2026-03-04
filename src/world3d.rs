@@ -1,6 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use crate::app_state::AppState;
+use crate::character::PlayerEntity;
 use crate::materials;
 use crate::types::LocationId;
 
@@ -15,11 +16,24 @@ pub struct ZoneGround;
 #[derive(Component)]
 pub struct Wall;
 
+#[derive(Component)]
+pub struct TreeEntity;
+
+#[derive(Component)]
+pub struct TreeLodPair {
+    near_entity: Entity,
+    far_entity: Entity,
+    near_distance: f32,
+    far_distance: f32,
+    use_near: bool,
+}
+
 pub struct World3dPlugin;
 
 impl Plugin for World3dPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::InGame), spawn_world);
+        app.add_systems(OnEnter(AppState::InGame), spawn_world)
+            .add_systems(Update, update_tree_lod.run_if(in_state(AppState::InGame)));
     }
 }
 
@@ -373,20 +387,71 @@ fn spawn_forest_trees(
             let x = center.x + angle.cos() * dist;
             let z = center.z + angle.sin() * dist;
 
-            // Trunk
-            commands.spawn((
+            let world_pos = Vec3::new(x, 0.0, z);
+
+            let mut near_entity = commands.spawn((
                 Mesh3d(trunk_mesh.clone()),
                 MeshMaterial3d(trunk_mat.clone()),
                 Transform::from_xyz(x, 1.5, z),
                 RigidBody::Static,
                 Collider::cylinder(0.3, 3.0),
+                Visibility::Hidden,
+                TreeEntity,
             ));
-            // Leaves
-            commands.spawn((
-                Mesh3d(leaf_mesh.clone()),
-                MeshMaterial3d(leaf_mat.clone()),
-                Transform::from_xyz(x, 4.0, z),
-            ));
+            near_entity.with_children(|parent| {
+                parent.spawn((
+                    Mesh3d(leaf_mesh.clone()),
+                    MeshMaterial3d(leaf_mat.clone()),
+                    Transform::from_xyz(0.0, 2.5, 0.0),
+                ));
+            });
+
+            let near_id = near_entity.id();
+            let far_id = commands.spawn((
+                Mesh3d(meshes.add(Cuboid::new(1.2, 4.0, 0.12))),
+                MeshMaterial3d(mats.add(StandardMaterial {
+                    base_color: Color::srgb(0.18, 0.35, 0.14),
+                    unlit: true,
+                    ..default()
+                })),
+                Transform::from_xyz(world_pos.x, 2.0, world_pos.z),
+                TreeEntity,
+            )).id();
+
+            commands.spawn(TreeLodPair {
+                near_entity: near_id,
+                far_entity: far_id,
+                near_distance: 26.0,
+                far_distance: 34.0,
+                use_near: false,
+            });
+
+        }
+    }
+}
+
+fn update_tree_lod(
+    player_q: Query<&Transform, With<PlayerEntity>>,
+    mut lod_q: Query<&mut TreeLodPair>,
+    mut vis_q: Query<&mut Visibility>,
+    tf_q: Query<&Transform>,
+) {
+    let Ok(player_tf) = player_q.single() else { return };
+    for mut lod in &mut lod_q {
+        let Ok(near_tf) = tf_q.get(lod.near_entity) else { continue };
+        let dist = player_tf.translation.distance(near_tf.translation);
+
+        if lod.use_near && dist > lod.far_distance {
+            lod.use_near = false;
+        } else if !lod.use_near && dist < lod.near_distance {
+            lod.use_near = true;
+        }
+
+        if let Ok(mut vis) = vis_q.get_mut(lod.near_entity) {
+            *vis = if lod.use_near { Visibility::Visible } else { Visibility::Hidden };
+        }
+        if let Ok(mut vis) = vis_q.get_mut(lod.far_entity) {
+            *vis = if lod.use_near { Visibility::Hidden } else { Visibility::Visible };
         }
     }
 }

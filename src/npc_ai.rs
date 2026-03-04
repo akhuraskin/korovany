@@ -19,7 +19,6 @@ pub struct AiState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AiFsm {
     Idle,
-    Patrol,
     Chase,
     Attack,
     ReturnHome,
@@ -116,20 +115,6 @@ fn ai_fsm_system(
                     ai.state = AiFsm::Chase;
                 }
             }
-            AiFsm::Patrol => {
-                // Simple patrol: move toward home if far
-                if dist_to_home > 3.0 {
-                    let dir = to_home.normalize();
-                    velocity.x = dir.x * 2.0;
-                    velocity.z = dir.z * 2.0;
-                } else {
-                    ai.state = AiFsm::Idle;
-                }
-
-                if ai.aggro_range > 0.0 && dist_to_player < ai.aggro_range {
-                    ai.state = AiFsm::Chase;
-                }
-            }
             AiFsm::Chase => {
                 if dist_to_player < ai.attack_range {
                     ai.state = AiFsm::Attack;
@@ -173,8 +158,8 @@ fn ai_fsm_system(
 
 fn ai_attack_system(
     mut commands: Commands,
-    mut npc_q: Query<(
-        &mut AiState,
+    npc_q: Query<(
+        &AiState,
         &NpcHealth,
         &Transform,
     )>,
@@ -184,7 +169,7 @@ fn ai_attack_system(
 ) {
     let Ok(player_tf) = player_q.single() else { return };
 
-    for (mut ai, npc_health, npc_tf) in &mut npc_q {
+    for (ai, npc_health, npc_tf) in &npc_q {
         if ai.state != AiFsm::Attack || npc_health.current <= 0 {
             continue;
         }
@@ -214,7 +199,6 @@ fn ai_attack_system(
             RigidBody::Kinematic,
             Hitbox {
                 damage,
-                owner: Entity::PLACEHOLDER,
                 is_player: false,
             },
             HitboxLifetime(Timer::from_seconds(0.15, TimerMode::Once)),

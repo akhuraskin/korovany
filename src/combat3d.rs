@@ -4,6 +4,8 @@ use rand::Rng;
 use crate::app_state::AppState;
 use crate::character::*;
 use crate::combat::apply_dismemberment;
+use crate::materials;
+use crate::trade;
 use crate::types::GameState;
 
 pub struct Combat3dPlugin;
@@ -27,6 +29,7 @@ impl Plugin for Combat3dPlugin {
                     bleeding_system,
                     invincibility_timer,
                     loot_pickup_system,
+                    caravan_interaction_system,
                 )
                     .run_if(in_state(AppState::InGame)),
             );
@@ -50,7 +53,6 @@ pub struct CombatMessage {
 #[derive(Component)]
 pub struct Hitbox {
     pub damage: i32,
-    pub owner: Entity,
     pub is_player: bool,
 }
 
@@ -76,13 +78,16 @@ pub struct LootDrop {
 }
 
 #[derive(Component)]
-pub struct DeathTimer(pub Timer);
+pub struct CaravanGuardNpc {
+    pub caravan_index: usize,
+    pub guard_index: usize,
+}
 
 fn player_attack_input(
     mut commands: Commands,
     mouse: Res<ButtonInput<MouseButton>>,
     game_state: Res<GameState>,
-    player_q: Query<(Entity, &Transform), With<PlayerEntity>>,
+    player_q: Query<&Transform, With<PlayerEntity>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -93,7 +98,7 @@ fn player_attack_input(
         return;
     }
 
-    let Ok((player_entity, player_tf)) = player_q.single() else { return };
+    let Ok(player_tf) = player_q.single() else { return };
 
     let forward = player_tf.forward();
     let hitbox_pos = player_tf.translation + forward * 1.5 + Vec3::Y * 0.5;
@@ -114,7 +119,6 @@ fn player_attack_input(
         RigidBody::Kinematic,
         Hitbox {
             damage,
-            owner: player_entity,
             is_player: true,
         },
         HitboxLifetime(Timer::from_seconds(0.2, TimerMode::Once)),
@@ -145,7 +149,7 @@ fn player_dodge_input(
 ) {
     cooldown.0.tick(time.delta());
 
-    if !input.just_pressed(KeyCode::Space) || !cooldown.0.is_finished() {
+    if !input.just_pressed(KeyCode::KeyQ) || !cooldown.0.is_finished() {
         return;
     }
 
@@ -323,12 +327,20 @@ fn npc_death_system(
     mut commands: Commands,
     mut combat_msgs: MessageWriter<CombatMessage>,
     mut game_state: ResMut<GameState>,
-    query: Query<(Entity, &NpcHealth, &Transform), Without<DeathTimer>>,
+    query: Query<(Entity, &NpcHealth, &Transform, Option<&CaravanGuardNpc>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut mats: ResMut<Assets<StandardMaterial>>,
 ) {
-    for (entity, npc_health, transform) in &query {
+    for (entity, npc_health, transform, maybe_caravan_guard) in &query {
         if npc_health.current <= 0 {
+            if let Some(caravan_guard) = maybe_caravan_guard {
+                if let Some(caravan) = game_state.caravans.get_mut(caravan_guard.caravan_index) {
+                    if let Some(guard) = caravan.guards.get_mut(caravan_guard.guard_index) {
+                        guard.health = 0;
+                    }
+                }
+            }
+
             let exp = 20 + npc_health.max / 2;
             if game_state.player.add_experience(exp) {
                 combat_msgs.write(CombatMessage {
@@ -368,8 +380,8 @@ fn npc_death_system(
                 ));
             }
 
-            // Despawn the NPC
-            commands.entity(entity).insert(DeathTimer(Timer::from_seconds(0.1, TimerMode::Once)));
+            // Despawn defeated NPCs so they no longer interact with combat systems.
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -438,6 +450,129 @@ fn loot_pickup_system(
                 });
             }
             commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn caravan_interaction_system(
+    input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    mut game_state: ResMut<GameState>,
+    player_q: Query<&Transform, With<PlayerEntity>>,
+    mut caravan_q: Query<(Entity, &Transform, &mut crate::CaravanEntity)>,
+    caravan_guard_q: Query<&CaravanGuardNpc>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut mats: ResMut<Assets<StandardMaterial>>,
+    mut combat_msgs: MessageWriter<CombatMessage>,
+) {
+    if !input.just_pressed(KeyCode::KeyE) {
+        return;
+    }
+
+    let Ok(player_tf) = player_q.single() else { return };
+    let mut nearest: Option<(f32, usize, Vec3)> = None;
+    let mut nearest_entity: Option<Entity> = None;
+    for (entity, tf, caravan_entity) in &mut caravan_q {
+        let dist = player_tf.translation.distance(tf.translation);
+        if dist > 6.0 {
+            continue;
+        }
+        match nearest {
+            Some((best, _, _)) if dist >= best => {}
+            _ => {
+                nearest = Some((dist, caravan_entity.caravan_index, tf.translation));
+                nearest_entity = Some(entity);
+            }
+        }
+    }
+
+    let Some((_, caravan_index, caravan_pos)) = nearest else { return };
+    if caravan_index >= game_state.caravans.len() {
+        return;
+    }
+
+    if game_state.caravans[caravan_index].location != game_state.player.location {
+        return;
+    }
+
+    let mut alive_world_guards = 0usize;
+    for guard in &caravan_guard_q {
+        if guard.caravan_index == caravan_index {
+            alive_world_guards += 1;
+        }
+    }
+    if alive_world_guards > 0 {
+        combat_msgs.write(CombatMessage {
+            text: "Сначала победите охрану корована!".into(),
+            color: Color::srgb(1.0, 0.6, 0.2),
+        });
+        return;
+    }
+
+    let has_alive_state_guards = game_state.caravans[caravan_index].guards.iter().any(|g| g.is_alive());
+    if has_alive_state_guards {
+        let alive_guards: Vec<(usize, crate::types::Npc)> = game_state.caravans[caravan_index]
+            .guards
+            .iter()
+            .enumerate()
+            .filter(|(_, g)| g.is_alive())
+            .map(|(i, g)| (i, g.clone()))
+            .collect();
+
+        for (guard_index, guard) in alive_guards {
+            let offset = Vec3::new(
+                (guard_index as f32 * 2.1).sin() * 2.4,
+                0.0,
+                (guard_index as f32 * 2.7).cos() * 2.4,
+            );
+            commands.spawn((
+                Mesh3d(meshes.add(Capsule3d::new(0.35, 1.0))),
+                MeshMaterial3d(mats.add(StandardMaterial {
+                    base_color: materials::CARAVAN_GUARD_COLOR,
+                    ..default()
+                })),
+                Transform::from_translation(caravan_pos + offset + Vec3::Y * 1.5),
+                RigidBody::Dynamic,
+                Collider::capsule(0.35, 1.0),
+                LockedAxes::ROTATION_LOCKED,
+                LinearDamping(8.0),
+                NpcHealth {
+                    current: guard.health,
+                    max: guard.max_health,
+                    attack: guard.attack,
+                    defense: guard.defense,
+                    gold: guard.gold,
+                    npc_type: guard.npc_type,
+                    name: guard.name,
+                },
+                HostileNpc,
+                CaravanGuardNpc {
+                    caravan_index,
+                    guard_index,
+                },
+            ));
+        }
+
+        combat_msgs.write(CombatMessage {
+            text: "Охрана корована вступила в бой!".into(),
+            color: Color::srgb(1.0, 0.5, 0.3),
+        });
+        return;
+    }
+
+    let (msgs, _) = trade::raid_caravan(&mut game_state, caravan_index);
+    for text in msgs {
+        combat_msgs.write(CombatMessage {
+            text,
+            color: Color::srgb(0.8, 0.8, 0.4),
+        });
+    }
+    if let Some(entity) = nearest_entity {
+        commands.entity(entity).despawn();
+    }
+    for (_, _, mut caravan_entity) in &mut caravan_q {
+        if caravan_entity.caravan_index > caravan_index {
+            caravan_entity.caravan_index -= 1;
         }
     }
 }
