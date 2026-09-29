@@ -20,9 +20,29 @@ Everything is free and open source. No paid libraries or assets.
 
 ## Run it
 
-1. Install [Godot 4.5](https://godotengine.org/download) (Linux, Windows or macOS).
-2. Open `godot/project.godot` and press **F5**.
-   From a terminal: `godot --path godot`.
+1. Install [Godot 4.5 or newer](https://godotengine.org/download) (Linux, Windows or macOS).
+   It is tested on 4.5 and 4.7.
+2. Import the project once after cloning. Either open `godot/project.godot` in the
+   editor, or run this from the repository root:
+
+   ```bash
+   godot --headless --path godot --import
+   ```
+
+   The scripts use global class names (`Factions`, `World`, `HUD` and so on).
+   Godot keeps the list of those names in the `.godot/` cache, which is not in
+   git. Without the import, the game fails with errors such as
+   `Identifier "Factions" not declared in the current scope`. Import again if
+   you delete `.godot/`.
+3. Press **F5** in the editor, or run `godot --path godot` from the repository root.
+
+If you installed Godot from Flathub, replace `godot` with
+`flatpak run org.godotengine.Godot` in every command in this README:
+
+```bash
+flatpak run org.godotengine.Godot --headless --path godot --import
+flatpak run org.godotengine.Godot --path godot
+```
 
 ### Export
 
@@ -106,7 +126,7 @@ godot/
 ## Tests
 
 ```bash
-godot --headless --path godot --import                 # first time only
+godot --headless --path godot --import                 # after a fresh clone
 godot --headless --path godot res://tests/smoke_test.tscn
 ```
 
